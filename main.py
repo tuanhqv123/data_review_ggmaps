@@ -203,7 +203,10 @@ def main():
     # Kiểm tra environment variables
     print("🔍 Checking environment variables...")
     db_config = get_db_config()
-    print(f"📊 Database config: {db_config['host']}:{db_config['port']}/{db_config['database']}")
+    if 'connection_string' in db_config:
+        print(f"📊 Database config: Using DATABASE_URL")
+    else:
+        print(f"📊 Database config: {db_config['host']}:{db_config['port']}/{db_config['database']}")
     
     # Kiểm tra kết nối database
     if not check_database_connection():
