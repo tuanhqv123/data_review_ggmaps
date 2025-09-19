@@ -13,6 +13,7 @@ Crawler tự động thu thập dữ liệu nhà hàng và reviews từ Google M
 5. **Click "Apply"**
 
 Render sẽ tự động tạo:
+
 - PostgreSQL database (`ggmaps-db`)
 - Web service (`google-maps-crawler`)
 - Cấu hình environment variables
@@ -20,10 +21,12 @@ Render sẽ tự động tạo:
 ### Cách 2: Deploy thủ công
 
 1. **Tạo PostgreSQL Database:**
+
    - Name: `ggmaps-db`
    - Plan: Starter ($7/month)
 
 2. **Tạo Web Service:**
+
    - Repository: `tuanhqv123/data_review_ggmaps`
    - Runtime: Python
    - Build Command: `pip install -r requirements.txt && playwright install chromium`
