@@ -1,58 +1,44 @@
-services:
-  # PostgreSQL Database Service
-  - type: pserv
-    name: ggmaps-database
-    env: postgres
-    plan: starter
-    envVars:
-      - key: POSTGRES_DB
-        value: ggmaps
-      - key: POSTGRES_USER
-        value: ggmaps
-      - key: POSTGRES_PASSWORD
-        generateValue: true
+# Render Blueprint Configuration
+# Deploy Google Maps Crawler với PostgreSQL database
 
-  # Web Service cho Crawler
-  - type: web
-    name: ggmaps-crawler
-    env: python
+databases:
+  - name: ggmaps-db
     plan: starter
-    buildCommand: |
-      pip install -r requirements.txt
-      playwright install chromium
-      playwright install-deps
+    databaseName: ggmaps
+    user: ggmaps
+
+services:
+  - type: web
+    name: google-maps-crawler
+    runtime: python
+    plan: starter
+    repo: https://github.com/tuanhqv123/data_review_ggmaps.git
+    buildCommand: pip install -r requirements.txt && playwright install chromium
     startCommand: python main.py
     envVars:
-      # Database connection từ PostgreSQL service
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ggmaps-db
+          property: connectionString
       - key: DB_HOST
-        fromService:
-          type: pserv
-          name: ggmaps-database
+        fromDatabase:
+          name: ggmaps-db
           property: host
       - key: DB_PORT
-        fromService:
-          type: pserv
-          name: ggmaps-database
+        fromDatabase:
+          name: ggmaps-db
           property: port
       - key: DB_NAME
-        fromService:
-          type: pserv
-          name: ggmaps-database
+        fromDatabase:
+          name: ggmaps-db
           property: database
       - key: DB_USER
-        fromService:
-          type: pserv
-          name: ggmaps-database
+        fromDatabase:
+          name: ggmaps-db
           property: user
       - key: DB_PASSWORD
-        fromService:
-          type: pserv
-          name: ggmaps-database
+        fromDatabase:
+          name: ggmaps-db
           property: password
-      # Environment variables khác
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: RENDER_TIMEOUT
-        value: 1800 # 30 minutes timeout
-    healthCheckPath: /
-    autoDeploy: true
+      - key: PYTHONUNBUFFERED
+        value: "1"

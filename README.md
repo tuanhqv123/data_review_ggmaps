@@ -1,220 +1,81 @@
-# Google Maps Places Crawler - Render Deployment
+# Google Maps Places Crawler
 
-Hệ thống tự động crawl dữ liệu nhà hàng/quán ăn từ Google Maps và lưu vào PostgreSQL database trên Render.
+Crawler tự động thu thập dữ liệu nhà hàng và reviews từ Google Maps, được tối ưu cho deployment trên Render.
 
-## 🚀 Tính năng
+## 🚀 Deploy trên Render
 
-- ✅ Tự động tạo database tables
-- ✅ Crawl dữ liệu từ Google Maps (Quận 1 & Quận 2)
-- ✅ Lưu trữ vào PostgreSQL database
-- ✅ Deploy tự động trên Render
-- ✅ Kết nối từ xa để kiểm tra dữ liệu
+### Cách 1: Sử dụng Render Blueprint (Khuyến nghị)
 
-## 📁 Cấu trúc Project
+1. **Fork repository này**
+2. **Vào [Render Dashboard](https://dashboard.render.com)**
+3. **Click "New" → "Blueprint"**
+4. **Connect GitHub repository**
+5. **Click "Apply"**
 
-```
-├── main.py                    # Entry point cho Render
-├── crawl_info_place (1).py    # Script crawl chính (đã test OK)
-├── create_tables.sql          # SQL schema cho database
-├── requirements.txt           # Python dependencies
-├── render.yaml               # Cấu hình Render deployment
-├── env.example               # Environment variables template
-├── test_connection.py        # Test kết nối database
-├── urls/                    # CSV files chứa URLs
-│   ├── urls_nhà_hang_quán_an_Quận_1.csv
-│   └── urls_nhà_hang_quán_an_Quận_2.csv
-└── README.md                # Hướng dẫn này
-```
+Render sẽ tự động tạo:
+- PostgreSQL database (`ggmaps-db`)
+- Web service (`google-maps-crawler`)
+- Cấu hình environment variables
 
-## 🛠️ Cài đặt Local Development
+### Cách 2: Deploy thủ công
 
-### 1. Clone repository
+1. **Tạo PostgreSQL Database:**
+   - Name: `ggmaps-db`
+   - Plan: Starter ($7/month)
 
-```bash
-git clone <your-repo-url>
-cd data_review_ggmaps
-```
+2. **Tạo Web Service:**
+   - Repository: `tuanhqv123/data_review_ggmaps`
+   - Runtime: Python
+   - Build Command: `pip install -r requirements.txt && playwright install chromium`
+   - Start Command: `python main.py`
+   - Plan: Starter ($7/month)
 
-### 2. Cài đặt dependencies
+3. **Cấu hình Environment Variables:**
+   ```
+   DATABASE_URL = <connection-string-from-database>
+   PYTHONUNBUFFERED = 1
+   ```
 
-```bash
-pip install -r requirements.txt
-playwright install chromium
-```
+## 📊 Dữ liệu thu thập
 
-### 3. Thiết lập database (PostgreSQL)
+- **194 places** từ Quận 1 & Quận 2 (TP.HCM)
+- **Thông tin chi tiết**: tên, địa chỉ, rating, giờ mở cửa, website, phone
+- **Reviews**: rating, text, thời gian, reviewer info, photos
 
-```bash
-# Sử dụng Docker Compose
-docker-compose up -d
+## 🔄 Checkpoint System
 
-# Hoặc cài đặt PostgreSQL local
-# Tạo database: ggmaps
-# User: ggmaps, Password: ggmaps
-```
+- Tự động lưu tiến độ crawl
+- Resume từ URL cuối cùng nếu bị timeout
+- Không mất dữ liệu đã crawl
 
-### 4. Cấu hình environment variables
+## 📋 Files chính
 
-```bash
-cp env.example .env
-# Chỉnh sửa .env với thông tin database của bạn
-```
+- `main.py` - Entry point cho Render
+- `crawl_info_place (1).py` - Core crawler logic
+- `checkpoint_system.py` - Progress tracking
+- `create_tables.sql` - Database schema
+- `render.yaml` - Render Blueprint configuration
 
-### 5. Test kết nối database
+## 🔍 Monitor Deployment
 
 ```bash
-python test_connection.py
-```
+# Xem logs
+render logs --service google-maps-crawler
 
-### 6. Chạy crawler
+# Kết nối database
+render psql --database ggmaps-db
 
-```bash
-python main.py
-```
-
-## 🌐 Deploy lên Render
-
-### 1. Chuẩn bị Repository
-
-- Push code lên GitHub/GitLab
-- Đảm bảo có file `render.yaml`
-
-### 2. Tạo Render Account
-
-- Đăng ký tại [render.com](https://render.com)
-- Kết nối GitHub/GitLab account
-
-### 3. Deploy từ Repository
-
-- Chọn "New" → "Blueprint"
-- Connect repository
-- Render sẽ tự động detect `render.yaml`
-- Click "Apply" để deploy
-
-### 4. Cấu hình Environment Variables
-
-Render sẽ tự động set các biến môi trường từ `render.yaml`:
-
-- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
-
-## 📊 Database Schema
-
-### Bảng `place`
-
-- `id`: Primary key
-- `url`: URL Google Maps
-- `name`: Tên địa điểm
-- `rating`: Đánh giá (1-5)
-- `review_count`: Số lượng đánh giá
-- `address`: Địa chỉ
-- `website`: Website
-- `phone`: Số điện thoại
-- `business_hours`: Giờ mở cửa (JSON)
-- `accessibility`, `service_options`, `highlights`, etc.: Các thuộc tính khác (Array)
-
-### Bảng `review`
-
-- `id`: Primary key
-- `place_id`: Foreign key đến bảng place
-- `review_id`: ID đánh giá từ Google Maps
-- `reviewer_name`: Tên người đánh giá
-- `rating`: Điểm đánh giá
-- `time`: Thời gian đánh giá (text)
-- `time_datetime`: Thời gian đánh giá (datetime)
-- `text`: Nội dung đánh giá
-- `photos`: Ảnh đánh giá (Array)
-
-## 🔗 Kết nối Database từ xa
-
-### 1. Lấy thông tin kết nối từ Render Dashboard
-
-- Vào PostgreSQL service trên Render
-- Copy connection string hoặc thông tin kết nối
-
-### 2. Kết nối bằng psql
-
-```bash
-psql "postgresql://username:password@host:port/database"
-```
-
-### 3. Kết nối bằng Python
-
-```python
-import psycopg2
-
-conn = psycopg2.connect(
-    host="your-render-host",
-    port=5432,
-    database="ggmaps",
-    user="ggmaps",
-    password="your-password"
-)
-```
-
-### 4. Kết nối bằng GUI tools
-
-- **pgAdmin**: Import connection string
-- **DBeaver**: Tạo PostgreSQL connection
-- **TablePlus**: Nhập thông tin kết nối
-
-## 📈 Monitoring & Logs
-
-### Render Dashboard
-
-- Xem logs real-time
-- Monitor resource usage
-- Check deployment status
-
-### Database Monitoring
-
-```sql
--- Kiểm tra số lượng records
+# Kiểm tra dữ liệu
 SELECT COUNT(*) FROM place;
 SELECT COUNT(*) FROM review;
-
--- Xem dữ liệu mới nhất
-SELECT * FROM place ORDER BY created_at DESC LIMIT 10;
-SELECT * FROM review ORDER BY created_at DESC LIMIT 10;
 ```
 
-## 🚨 Troubleshooting
+## ⏱️ Thời gian crawl
 
-### Lỗi kết nối database
-
-- Kiểm tra environment variables
-- Đảm bảo PostgreSQL service đang chạy
-- Check firewall/network settings
-
-### Lỗi Playwright
-
-- Đảm bảo đã install chromium: `playwright install chromium`
-- Check browser dependencies
-
-### Lỗi crawl
-
-- Kiểm tra URLs trong CSV files
-- Verify Google Maps selectors
-- Check rate limiting
-
-## 📞 Support
-
-Nếu gặp vấn đề:
-
-1. Check logs trên Render Dashboard
-2. Kiểm tra database connection
-3. Verify environment variables
-4. Test local development trước khi deploy
-
-## 🎯 Next Steps
-
-Sau khi deploy thành công:
-
-1. Monitor crawler progress
-2. Check data quality
-3. Set up automated scheduling (nếu cần)
-4. Implement data analysis/visualization
-5. Add more districts/quận nếu cần
+- **~2-3 giờ** để crawl hết 194 URLs
+- **30 giây delay** giữa mỗi URL
+- **Checkpoint system** đảm bảo không mất dữ liệu
 
 ---
 
-**Happy Crawling! 🕷️**
+**💡 Tip**: Deploy vào giờ ít traffic để tránh rate limiting từ Google Maps.

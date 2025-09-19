@@ -18,19 +18,33 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'port': int(os.getenv('DB_PORT', 5432)),
-    'database': os.getenv('DB_NAME', 'ggmaps'),
-    'user': os.getenv('DB_USER', 'ggmaps'),
-    'password': os.getenv('DB_PASSWORD', 'ggmaps')
-}
+def get_db_config():
+    """Lấy cấu hình database từ environment variables"""
+    # Ưu tiên DATABASE_URL từ Render
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        return {'connection_string': database_url}
+    
+    # Fallback cho local development
+    return {
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'port': int(os.getenv('DB_PORT', 5432)),
+        'database': os.getenv('DB_NAME', 'ggmaps'),
+        'user': os.getenv('DB_USER', 'ggmaps'),
+        'password': os.getenv('DB_PASSWORD', 'ggmaps')
+    }
+
+DB_CONFIG = get_db_config()
 
 
 def connect_to_db():
     """Connect to PostgreSQL database"""
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        # Sử dụng connection string hoặc individual parameters
+        if 'connection_string' in DB_CONFIG:
+            conn = psycopg2.connect(DB_CONFIG['connection_string'])
+        else:
+            conn = psycopg2.connect(**DB_CONFIG)
         return conn
     except Exception as e:
         print(f"Error connecting to database: {e}")

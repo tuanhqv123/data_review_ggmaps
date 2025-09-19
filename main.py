@@ -20,6 +20,12 @@ load_dotenv()
 
 def get_db_config():
     """Lấy cấu hình database từ environment variables"""
+    # Ưu tiên DATABASE_URL từ Render
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        return {'connection_string': database_url}
+    
+    # Fallback cho local development
     return {
         'host': os.getenv('DB_HOST', 'localhost'),
         'port': int(os.getenv('DB_PORT', 5432)),
@@ -35,7 +41,13 @@ def create_tables():
     conn = None
     try:
         db_config = get_db_config()
-        conn = psycopg2.connect(**db_config)
+        
+        # Sử dụng connection string hoặc individual parameters
+        if 'connection_string' in db_config:
+            conn = psycopg2.connect(db_config['connection_string'])
+        else:
+            conn = psycopg2.connect(**db_config)
+            
         cursor = conn.cursor()
         
         # Kiểm tra tables đã tồn tại chưa
@@ -86,7 +98,13 @@ def check_database_connection():
     
     try:
         db_config = get_db_config()
-        conn = psycopg2.connect(**db_config)
+        
+        # Sử dụng connection string hoặc individual parameters
+        if 'connection_string' in db_config:
+            conn = psycopg2.connect(db_config['connection_string'])
+        else:
+            conn = psycopg2.connect(**db_config)
+            
         cursor = conn.cursor()
         cursor.execute("SELECT version();")
         version = cursor.fetchone()[0]
