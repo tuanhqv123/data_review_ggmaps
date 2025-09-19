@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender1 \
     libxi6 \
-    libgl1-mesa-glx \
+    libgl1-mesa-dri \
     libgobject-2.0-0 \
     libglib2.0-0 \
     libdbus-1-3 \
