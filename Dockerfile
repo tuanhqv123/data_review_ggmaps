@@ -28,10 +28,6 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     libgobject-2.0-0 \
     libglib2.0-0 \
-    libnss3-dev \
-    libnssutil3 \
-    libsmime3 \
-    libnspr4 \
     libdbus-1-3 \
     libatk1.0-0 \
     libcups2 \
