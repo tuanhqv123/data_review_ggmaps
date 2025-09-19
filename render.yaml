@@ -1,0 +1,58 @@
+services:
+  # PostgreSQL Database Service
+  - type: pserv
+    name: ggmaps-database
+    env: postgres
+    plan: starter
+    envVars:
+      - key: POSTGRES_DB
+        value: ggmaps
+      - key: POSTGRES_USER
+        value: ggmaps
+      - key: POSTGRES_PASSWORD
+        generateValue: true
+
+  # Web Service cho Crawler
+  - type: web
+    name: ggmaps-crawler
+    env: python
+    plan: starter
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install chromium
+      playwright install-deps
+    startCommand: python main.py
+    envVars:
+      # Database connection từ PostgreSQL service
+      - key: DB_HOST
+        fromService:
+          type: pserv
+          name: ggmaps-database
+          property: host
+      - key: DB_PORT
+        fromService:
+          type: pserv
+          name: ggmaps-database
+          property: port
+      - key: DB_NAME
+        fromService:
+          type: pserv
+          name: ggmaps-database
+          property: database
+      - key: DB_USER
+        fromService:
+          type: pserv
+          name: ggmaps-database
+          property: user
+      - key: DB_PASSWORD
+        fromService:
+          type: pserv
+          name: ggmaps-database
+          property: password
+      # Environment variables khác
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: RENDER_TIMEOUT
+        value: 1800 # 30 minutes timeout
+    healthCheckPath: /
+    autoDeploy: true
