@@ -10,11 +10,10 @@ databases:
 services:
   - type: web
     name: google-maps-crawler
-    runtime: python
+    runtime: docker
     plan: starter
     repo: https://github.com/tuanhqv123/data_review_ggmaps.git
-    buildCommand: pip install --upgrade pip setuptools wheel && pip install --only-binary=:all: greenlet==3.0.1 && pip install -r requirements.txt && playwright install chromium
-    startCommand: python main.py
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: DATABASE_URL
         fromDatabase:
