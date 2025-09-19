@@ -34,4 +34,4 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright/
 EXPOSE 10000
 
 # Start command
-CMD ["python", "main.py"]
+CMD ["python", "web_server.py"]
