@@ -865,6 +865,162 @@ def load_urls_from_specific_files() -> list[str]:
     return urls
 
 
+async def open_place_pages_with_checkpoint(playwright: Playwright, urls: list[str]) -> list[dict]:
+    """Version với checkpoint system để tránh timeout và có thể resume"""
+    from checkpoint_system import checkpoint
+    
+    browser = await playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
+    context = await browser.new_context(
+        viewport={"width": 1366, "height": 900},
+        timezone_id="Asia/Ho_Chi_Minh",
+        locale="vi-VN",
+        extra_http_headers={
+            "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.4",
+        },
+    )
+    page = await context.new_page()
+
+    results: list[dict] = []
+    for idx, url in enumerate(urls, start=1):
+        try:
+            print(f"\n{'='*60}")
+            print(f"Processing URL {idx}/{len(urls)}: {url}")
+            print(f"{'='*60}")
+            
+            target_url = _force_vi_lang(url)
+            await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(2000)
+
+            # Ensure title appears
+            await page.wait_for_selector("h1.DUwDvf.lfPIob", timeout=15000)
+            await page.wait_for_timeout(10)
+
+            name = await _get_text(page, ["h1.DUwDvf.lfPIob"])
+            
+            if not name:
+                print(f"❌ Could not extract name for URL: {url}")
+                checkpoint.mark_url_processed(url, "", success=False)
+                continue
+
+            rating_text = await _get_text(page, ['div.F7nice span[aria-hidden="true"]'])
+            rating = _parse_float(rating_text)
+
+            reviews_label = await _get_attr(page, [
+                'div.F7nice span[aria-label*="bài đánh giá"]',
+                'div.F7nice span[aria-label*="review"]',
+            ], attr_name="aria-label")
+            if not reviews_label:
+                reviews_label = await _get_text(page, ['div.F7nice span[aria-label*="bài đánh giá"]', 'div.F7nice span[aria-label*="review"]'])
+            review_count = _parse_reviews_count(reviews_label)
+
+            address = await _get_text(page, [
+                'button[data-item-id="address"] div.Io6YTe',
+                'button[data-item-id="address"]',
+            ])
+
+            website_url = await _get_attr(page, [
+                'a[data-item-id="authority"]',
+                'a.CsEnBe[data-item-id="authority"]',
+                'a[aria-label^="Website:"]',
+                'a[aria-label*="Website"]',
+            ], attr_name="href")
+
+            tel_href = await _get_attr(page, ['a[href^="tel:"]'], 'href')
+            if tel_href:
+                phone = tel_href.replace('tel:', '').strip()
+            else:
+                phone = await _get_text(page, [
+                    'button[data-item-id^="phone"] div.Io6YTe',
+                    'a[data-item-id^="phone"] div.Io6YTe',
+                    'button[aria-label*="Phone"] div.Io6YTe',
+                    'a[aria-label*="Phone"] div.Io6YTe',
+                ])
+
+            business_hours = await _extract_business_hours(page)
+            await _go_to_about_tab(page)
+            await asyncio.sleep(5)
+
+            accessibility = await _extract_about_list(page, "Phù hợp cho người khuyết tật")
+            service_options = await _extract_about_list(page, "Các tùy chọn dịch vụ")
+            highlights = await _extract_about_list(page, "Điểm nổi bật")
+            popular_for = await _extract_about_list(page, "Nổi tiếng về")
+            offerings = await _extract_about_list(page, "Dịch vụ")
+            dining_options = await _extract_about_list(page, "Lựa chọn ăn uống")
+            amenities = await _extract_about_list(page, "Tiện nghi")
+            atmosphere = await _extract_about_list(page, "Bầu không khí")
+            crowd = await _extract_about_list(page, "Khách hàng")
+            planning = await _extract_about_list(page, "Lên kế hoạch")
+            payments = await _extract_about_list(page, "Thanh toán")
+            children = await _extract_about_list(page, "Trẻ em")
+            parking = await _extract_about_list(page, "Bãi đỗ xe")
+
+            await _go_to_reviews_tab(page)
+            print("Navigated to Reviews tab")
+            await page.wait_for_timeout(3000)
+            await _scroll_reviews_to_end(page)
+
+            reviews = await _extract_reviews(page, max_reviews=review_count)
+            print(f"Extracted {len(reviews)} reviews")
+            
+            result = {
+                "url": url,
+                "name": name,
+                "rating": rating,
+                "review_count": review_count,
+                "address": address,
+                "website": website_url,
+                "phone": phone,
+                "business_hours": business_hours,
+                "accessibility": accessibility,
+                "service_options": service_options,
+                "highlights": highlights,
+                "popular_for": popular_for,
+                "offerings": offerings,
+                "dining_options": dining_options,
+                "amenities": amenities,
+                "atmosphere": atmosphere,
+                "crowd": crowd,
+                "planning": planning,
+                "payments": payments,
+                "children": children,
+                "parking": parking,
+                "reviews": reviews,
+            }
+            
+            # Save to database
+            try:
+                success = save_to_database(result)
+                if success:
+                    checkpoint.mark_url_processed(url, name, success=True)
+                    print(f"✅ Data saved to database for place {idx}: {name}")
+                else:
+                    checkpoint.mark_url_processed(url, name, success=False)
+                    print(f"❌ Failed to save data to database for place {idx}: {name}")
+            except Exception as e:
+                checkpoint.mark_url_processed(url, name, success=False)
+                print(f"❌ Could not save data to database: {e}")
+            
+            results.append(result)
+            print(f"✅ Captured [{idx}/{len(urls)}]: {name}")
+            
+            # Add delay before next URL (except for the last one)
+            if idx < len(urls):
+                print(f"⏳ Waiting 30 seconds before next URL...")
+                await asyncio.sleep(30)  # Reduced delay for Render
+                
+        except Exception as e:
+            print(f"Failed to open URL #{idx}: {url} -> {e}")
+            checkpoint.mark_url_processed(url, "", success=False)
+            error_result = {
+                "url": url,
+                "error": str(e),
+            }
+            results.append(error_result)
+
+    await context.close()
+    await browser.close()
+    return results
+
 async def open_place_pages(playwright: Playwright, urls: list[str]) -> list[dict]:
     browser = await playwright.chromium.launch(headless=False)
     context = await browser.new_context(

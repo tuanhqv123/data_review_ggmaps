@@ -12,6 +12,9 @@ from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 import importlib.util
 
+# Import checkpoint system
+from checkpoint_system import checkpoint
+
 # Load environment variables
 load_dotenv()
 
@@ -109,7 +112,7 @@ def load_crawler_module():
         return None
 
 async def run_crawler():
-    """Chạy crawler để thu thập dữ liệu"""
+    """Chạy crawler với checkpoint system để thu thập dữ liệu"""
     print("🚀 Starting Google Maps Places Crawler...")
     print("📍 Target: Quận 1 & Quận 2")
     print("=" * 60)
@@ -121,34 +124,55 @@ async def run_crawler():
         return
     
     # Load URLs từ CSV files
-    urls = crawl_module.load_urls_from_specific_files()
+    all_urls = crawl_module.load_urls_from_specific_files()
     
-    if not urls:
+    if not all_urls:
         print("❌ No URLs found in CSV files!")
         return
     
-    print(f"📊 Total URLs to process: {len(urls)}")
-    print(f"⏱️  Estimated time: {len(urls)} minutes (1 minute per URL)")
+    # Kiểm tra checkpoint và lấy URLs còn lại
+    remaining_urls = checkpoint.get_remaining_urls(all_urls)
+    
+    if not remaining_urls:
+        print("✅ All URLs have been processed!")
+        progress = checkpoint.get_progress_summary()
+        print(f"📊 Progress: {progress['processed']}/{progress['total']} URLs completed")
+        return
+    
+    # Khởi tạo checkpoint nếu chưa có
+    if checkpoint.data["status"] == "not_started":
+        checkpoint.start_crawl(len(all_urls))
+    
+    print(f"📊 Total URLs: {len(all_urls)}")
+    print(f"📊 Remaining URLs: {len(remaining_urls)}")
+    print(f"📊 Progress: {checkpoint.get_progress_summary()['progress_percent']}%")
     print("=" * 60)
     
     # Import playwright functions
     from playwright.async_api import async_playwright
     
-    async with async_playwright() as playwright:
-        data = await crawl_module.open_place_pages(playwright, urls)
+    try:
+        async with async_playwright() as playwright:
+            data = await crawl_module.open_place_pages_with_checkpoint(playwright, remaining_urls)
+        
+        # Đánh dấu hoàn thành
+        checkpoint.complete_crawl()
+        
+    except Exception as e:
+        print(f"❌ Crawler error: {e}")
+        print("💾 Checkpoint saved - can resume from last processed URL")
+        raise
     
     # Thống kê kết quả
     print("\n" + "=" * 60)
     print("🎉 Crawling completed!")
     print("=" * 60)
-    print(f"📊 Total places processed: {len(data)}")
+    progress = checkpoint.get_progress_summary()
+    print(f"📊 Total places processed: {progress['processed']}")
+    print(f"📊 Failed URLs: {progress['failed']}")
+    print(f"📊 Progress: {progress['progress_percent']}%")
     
-    successful = len([r for r in data if 'error' not in r])
-    errors = len([r for r in data if 'error' in r])
-    print(f"✅ Successfully processed: {successful}")
-    print(f"❌ Errors: {errors}")
-    
-    if successful > 0:
+    if progress['processed'] > 0:
         print(f"💾 All data has been saved to PostgreSQL database")
         db_config = get_db_config()
         print(f"🔗 Database: {db_config['host']}:{db_config['port']}/{db_config['database']}")
